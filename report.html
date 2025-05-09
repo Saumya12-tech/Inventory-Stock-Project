@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reports</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>Inventory & Stock Management</header>
+  <nav>
+  <a href="index.html">Home</a>
+  <a href="products.html" aria-label="Products">Products</a>
+  <a href="customer.html" class="active" aria-label="Customers">Customers</a>
+  <a href="stock.html" aria-label="Stock In/Out">Stock In/Out</a>
+  <a href="report.html" aria-label="Reports">Reports</a>
+</nav>
+  <main>
+    <h2>Reports Dashboard</h2>
+
+    <section>
+      <h3>Total Inventory Value</h3>
+      <p><strong>$<span id="inventory-value">0.00</span></strong></p>
+    </section>
+
+    <section>
+      <div class="chart-container">
+      <h3>Inventory Distribution</h3>
+      <canvas id="category-chart" height="200"></canvas>
+      </div>
+    </section>
+
+    <section>
+      <h3>Low Stock Products</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Stock</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="low-stock-table">
+          <tr><td colspan="3" class="no-data">No data yet.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h3>Customer Transactions</h3>
+      <label for="customer-select">Select Customer</label>
+      <select id="customer-select">
+        <option value="">-- Select --</option>
+      </select>
+
+      <div class="transaction-list" style="margin-top:10px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Product</th>
+              <th>Qty</th>
+            </tr>
+          </thead>
+          <tbody id="customer-history-table">
+            <tr><td colspan="4" class="no-data">No transactions yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+ <footer>
+    <p>&copy; 2025 Inventory & Stock Management | All rights reserved</p>
+  </footer>
+
+  <script>
+    const inventory = JSON.parse(localStorage.getItem('inventory_products') || '[]');
+    const customers = JSON.parse(localStorage.getItem('inventory_customers') || '[]');
+    const transactions = JSON.parse(localStorage.getItem('inventory_transactions') || '[]');
+
+    const valueSpan = document.getElementById('inventory-value');
+    const chartCtx = document.getElementById('category-chart').getContext('2d');
+    const lowStockTable = document.getElementById('low-stock-table');
+    const customerSelect = document.getElementById('customer-select');
+    const customerHistoryTable = document.getElementById('customer-history-table');
+
+    function renderInventoryValue() {
+      const total = inventory.reduce((sum, p) => sum + (p.price * p.stock), 0);
+      valueSpan.textContent = total.toFixed(2);
+    }
+
+    function renderLowStock() {
+      const lowStock = inventory.filter(p => p.stock < 10);
+      lowStockTable.innerHTML = '';
+      if (lowStock.length === 0) {
+        lowStockTable.innerHTML = '<tr><td colspan="3" class="no-data">All products are sufficiently stocked.</td></tr>';
+        return;
+      }
+      lowStock.forEach(p => {
+        let status = p.stock < 5 ? '🔴 Critical' : '🟡 Low';
+        lowStockTable.innerHTML += `
+          <tr>
+            <td>${p.name}</td>
+            <td>${p.stock}</td>
+            <td>${status}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderCategoryChart() {
+      const categories = {};
+      inventory.forEach(p => {
+        categories[p.category] = (categories[p.category] || 0) + p.stock;
+      });
+
+      new Chart(chartCtx, {
+        type: 'pie',
+        data: {
+          labels: Object.keys(categories),
+          datasets: [{
+            label: 'Stock by Category',
+            data: Object.values(categories),
+            backgroundColor: ['#007acc', '#f39c12', '#2ecc71', '#e74c3c', '#9b59b6'],
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            title: { display: true, text: 'Inventory Categories' }
+          }
+        }
+      });
+    }
+
+    function populateCustomerDropdown() {
+      customerSelect.innerHTML = '<option value="">-- Select --</option>';
+      customers.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.mobile;
+        opt.textContent = `${c.name} (${c.mobile})`;
+        customerSelect.appendChild(opt);
+      });
+    }
+
+    customerSelect.addEventListener('change', () => {
+      const mobile = customerSelect.value;
+      const rows = transactions
+        .filter(tx => tx.customerMobile === mobile)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      customerHistoryTable.innerHTML = '';
+      if (rows.length === 0) {
+        customerHistoryTable.innerHTML = '<tr><td colspan="4" class="no-data">No transactions found.</td></tr>';
+        return;
+      }
+
+      rows.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${new Date(tx.timestamp).toLocaleString()}</td>
+          <td>${tx.action}</td>
+          <td>${tx.productSku}</td>
+          <td>${tx.quantity}</td>
+        `;
+        customerHistoryTable.appendChild(row);
+      });
+    });
+
+    // Init
+    renderInventoryValue();
+    renderLowStock();
+    renderCategoryChart();
+    populateCustomerDropdown();
+  </script>
+</body>
+</html>

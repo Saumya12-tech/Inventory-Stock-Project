@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Stock In/Out</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>Inventory & Stock Management</header>
+<nav>
+  <a href="index.html">Home</a>
+  <a href="products.html" aria-label="Products">Products</a>
+  <a href="customer.html" aria-label="Customers">Customers</a>
+  <a href="stock.html" class="active" aria-label="Stock In/Out">Stock In/Out</a>
+  <a href="report.html" aria-label="Reports">Reports</a>
+</nav>
+<main tabindex="0" role="region" aria-labelledby="stock-title">
+  <h2 id="stock-title">Stock In / Out</h2>
+
+  <form id="stock-form" aria-label="Record Stock In or Out">
+    <label for="stock-action">Action</label>
+    <select id="stock-action" required>
+      <option value="Add">Add Stock (Purchase)</option>
+      <option value="Remove">Remove Stock (Sale)</option>
+    </select>
+
+    <label for="stock-customer">Customer</label>
+    <select id="stock-customer" required>
+      <option value="">Select Customer</option>
+    </select>
+
+    <label for="stock-product">Product</label>
+    <select id="stock-product" required>
+      <option value="">Select Product</option>
+    </select>
+
+    <label for="stock-quantity">Quantity</label>
+    <input type="number" id="stock-quantity" min="1" step="1" placeholder="Quantity" required autocomplete="off"/>
+
+    <input type="submit" value="Record Transaction" />
+  </form>
+
+  <h3>Last 50 Transactions</h3>
+  <div class="transaction-list" aria-live="polite" aria-atomic="false">
+    <table aria-label="Stock Transactions History" id="transactions-table" tabindex="0">
+      <thead>
+        <tr>
+          <th>Action</th>
+          <th>Product</th>
+          <th>Quantity</th>
+          <th>Customer</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</main>
+<footer>
+    <p>&copy; 2025 Inventory & Stock Management | All rights reserved</p>
+  </footer>
+<script src="backend.js"></script>
+<script>
+  const dom = {
+    stockForm: document.getElementById('stock-form'),
+    stockAction: document.getElementById('stock-action'),
+    stockCustomer: document.getElementById('stock-customer'),
+    stockProduct: document.getElementById('stock-product'),
+    stockQuantity: document.getElementById('stock-quantity'),
+    transactionsTableBody: document.querySelector('#transactions-table tbody'),
+  };
+
+  function refreshSelectOptions(selectEl, items, valueProp, labelFunc) {
+    const currentValue = selectEl.value;
+    selectEl.innerHTML = '<option value="">Select</option>';
+    for(const item of items) {
+      const option = document.createElement('option');
+      option.value = item[valueProp];
+      option.textContent = labelFunc(item);
+      selectEl.appendChild(option);
+    }
+    selectEl.value = currentValue;
+  }
+
+  function refreshStockFormOptions() {
+    // Refresh customers and products options in form selects
+    refreshSelectOptions(dom.stockCustomer, [...inventory.customers.values()], 'mobile', c => `${c.name} (${c.mobile})`);
+    refreshSelectOptions(dom.stockProduct, [...inventory.products.values()], 'sku', p => `${p.name} (SKU: ${p.sku})`);
+  }
+
+  function renderTransactions() {
+    const transactions = inventory.transactions;
+    dom.transactionsTableBody.innerHTML = '';
+    if(!transactions.length) {
+      dom.transactionsTableBody.innerHTML = '<tr><td colspan="5" class="no-data">No transactions yet.</td></tr>';
+      return;
+    }
+    for(const tx of transactions) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${tx.action}</td>
+        <td>${tx.product.name}</td>
+        <td>${tx.quantity}</td>
+        <td>${tx.customer.name}</td>
+        <td>${tx.timestamp.toLocaleString()}</td>
+      `;
+      dom.transactionsTableBody.appendChild(tr);
+    }
+  }
+
+  dom.stockForm.addEventListener('submit', e => {
+    e.preventDefault();
+    try {
+      const action = dom.stockAction.value;
+      const customerMobile = dom.stockCustomer.value;
+      const productSku = dom.stockProduct.value;
+      const quantity = parseInt(dom.stockQuantity.value);
+
+      if(!customerMobile || !productSku || isNaN(quantity) || quantity < 1) {
+        alert('Please select customer, product and enter valid quantity.');
+        return;
+      }
+      if(action === 'Add') {
+        inventory.recordStockIn(productSku, quantity, customerMobile);
+      } else {
+        inventory.recordStockOut(productSku, quantity, customerMobile);
+      }
+      dom.stockForm.reset();
+      renderTransactions();
+    } catch(err) {
+      alert(err.message);
+    }
+  });
+
+  refreshStockFormOptions();
+  renderTransactions();
+</script>
+</body>
+</html>

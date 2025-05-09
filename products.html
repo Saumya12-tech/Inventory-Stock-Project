@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Product Management</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>Inventory & Stock Management</header>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="products.html" class="active" aria-label="Products">Products</a>
+    <a href="customer.html" aria-label="Customers">customer</a>
+    <a href="stock.html" aria-label="Stock In/Out">Stock In/Out</a>
+    <a href="report.html" aria-label="Reports">Reports</a>
+  </nav>
+  <main tabindex="0" role="region" aria-labelledby="products-title">
+    <h2 id="products-title">Product Management</h2>
+    <form id="product-form" aria-label="Add or Edit Product">
+      <input type="hidden" id="product-sku-hidden" />
+      
+      <label for="product-name">Name</label>
+      <input type="text" id="product-name" placeholder="Product Name" required autocomplete="off" />
+
+      <label for="product-sku">SKU</label>
+      <input type="text" id="product-sku" placeholder="Unique SKU" required autocomplete="off" />
+
+      <label for="product-category">Category</label>
+      <select id="product-category" required>
+        <option value="">Select Category</option>
+        <option value="Electronics">Electronics</option>
+        <option value="Grocery">Grocery</option>
+        <option value="Clothing">Clothing</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label for="product-price">Price ($)</label>
+      <input type="number" id="product-price" min="0" step="0.01" placeholder="Price" required autocomplete="off"/>
+
+      <label for="product-stock">Stock Quantity</label>
+      <input type="number" id="product-stock" min="0" step="1" placeholder="Stock Quantity" required autocomplete="off"/>
+
+      <input type="submit" value="Add Product" />
+    </form>
+
+    <table aria-label="Products List" id="products-table" tabindex="0">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>SKU</th>
+          <th>Category</th>
+          <th>Price ($)</th>
+          <th>Stock</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+  <footer>
+    <p>&copy; 2025 Inventory & Stock Management | All rights reserved</p>
+  </footer>
+  <script src="backend.js"></script>
+  <script>
+    // UI references
+    const dom = {
+      productForm: document.getElementById('product-form'),
+      productSkuHidden: document.getElementById('product-sku-hidden'),
+      productName: document.getElementById('product-name'),
+      productSku: document.getElementById('product-sku'),
+      productCategory: document.getElementById('product-category'),
+      productPrice: document.getElementById('product-price'),
+      productStock: document.getElementById('product-stock'),
+      productsTableBody: document.querySelector('#products-table tbody'),
+    };
+
+    function resetProductForm() {
+      dom.productForm.reset();
+      dom.productSkuHidden.value = '';
+      dom.productSku.disabled = false;
+      dom.productForm.querySelector('input[type="submit"]').value = 'Add Product';
+    }
+
+    function renderProducts() {
+      dom.productsTableBody.innerHTML = '';
+      for(const product of inventory.products.values()) {
+        const status = Reporting.stockStatus(product.stock);
+        const tr = document.createElement('tr');
+        const lowStockClass = product.stock < 5 ? 'low-stock' : ''; // Highlight low stock
+        tr.innerHTML = `
+          <td>${product.name}</td>
+          <td>${product.sku}</td>
+          <td>${product.category}</td>
+          <td>${product.price.toFixed(2)}</td>
+          <td class="${lowStockClass}">${product.stock}</td>
+          <td class="low-stock-indicator ${status.className}">${status.text}</td>
+          <td>
+            <button aria-label="Edit ${product.name}" class="edit-product-btn" data-sku="${product.sku}" title="Edit">✏️</button>
+            <button aria-label="Delete ${product.name}" class="delete-product-btn small-btn" data-sku="${product.sku}" title="Delete">🗑️</button>
+          </td>
+        `;
+        dom.productsTableBody.appendChild(tr);
+      }
+    }
+
+    function validateProductDetails(name, sku, category, price, stock) {
+      if (!name || !sku || !category || isNaN(price) || isNaN(stock) || price < 0 || stock < 0) {
+        alert('Please enter valid product details.');
+        return false;
+      }
+      return true;
+    }
+
+    dom.productForm.addEventListener('submit', e => {
+      e.preventDefault();
+      try {
+        const skuHidden = dom.productSkuHidden.value.trim();
+        const name = dom.productName.value.trim();
+        const sku = dom.productSku.value.trim();
+        const category = dom.productCategory.value;
+        const price = parseFloat(dom.productPrice.value);
+        const stock = parseInt(dom.productStock.value);
+
+        if (!validateProductDetails(name, sku, category, price, stock)) {
+          return;
+        }
+
+        if (skuHidden) {
+          if (skuHidden !== sku && inventory.products.has(sku)) {
+            alert('SKU must be unique.');
+            return;
+          }
+          if (skuHidden !== sku) {
+            inventory.deleteProduct(skuHidden);
+            inventory.addProduct(new Product(name, sku, category, price, stock));
+          } else {
+            inventory.editProduct(sku, { name, category, price, stock });
+          }
+        } else {
+          if (inventory.products.has(sku)) {
+            alert('SKU already exists.');
+            return;
+          }
+          inventory.addProduct(new Product(name, sku, category, price, stock));
+        }
+
+        resetProductForm();
+        renderProducts();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    dom.productsTableBody.addEventListener('click', e => {
+      const target = e.target;
+      if (target.classList.contains('edit-product-btn')) {
+        const sku = target.dataset.sku;
+        const prod = inventory.products.get(sku);
+        if (prod) {
+          dom.productName.value = prod.name;
+          dom.productSku.value = prod.sku;
+          dom.productCategory.value = prod.category;
+          dom.productPrice.value = prod.price;
+          dom.productStock.value = prod.stock;
+          dom.productSkuHidden.value = prod.sku;
+          dom.productSku.disabled = true;
+          dom.productForm.querySelector('input[type="submit"]').value = 'Update Product';
+          window.scrollTo(0, 0);
+        }
+      }
+      if (target.classList.contains('delete-product-btn')) {
+        const sku = target.dataset.sku;
+        if (confirm('Delete product?')) {
+          try {
+            inventory.deleteProduct(sku);
+            renderProducts();
+          } catch (err) {
+            alert(err.message);
+          }
+        }
+      }
+    });
+
+    // Initial render
+    renderProducts();
+  </script>
+</body>
+</html>

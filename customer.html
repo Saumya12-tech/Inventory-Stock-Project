@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Customer Management</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header>Inventory & Stock Management</header>
+<nav>
+  <a href="index.html">Home</a>
+  <a href="products.html" aria-label="Products">Products</a>
+  <a href="customer.html" class="active" aria-label="Customers">Customers</a>
+  <a href="stock.html" aria-label="Stock In/Out">Stock In/Out</a>
+  <a href="report.html" aria-label="Reports">Reports</a>
+</nav>
+<main tabindex="0" role="region" aria-labelledby="customers-title">
+  <h2 id="customers-title">Customer Management</h2>
+  <form id="customer-form" aria-label="Add or Edit Customer">
+    <input type="hidden" id="customer-mobile-hidden" />
+
+    <label for="customer-name">Name</label>
+    <input type="text" id="customer-name" placeholder="Customer Name" required autocomplete="off" />
+
+    <label for="customer-mobile">Mobile Number</label>
+    <input type="tel" id="customer-mobile" placeholder="Mobile Number" required autocomplete="off" />
+
+    <label for="customer-address">Address</label>
+    <textarea id="customer-address" placeholder="Address" rows="2" required></textarea>
+
+    <input type="submit" value="Add Customer" />
+  </form>
+
+  <table aria-label="Customers List" id="customers-table" tabindex="0">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Mobile</th>
+        <th>Address</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <section id="customer-history-section" hidden aria-live="polite" aria-atomic="true">
+    <h3>Customer Transaction History</h3>
+    <div id="customer-purchase-history">
+      <strong>Purchases:</strong>
+      <ul></ul>
+    </div>
+    <div id="customer-supply-history" style="margin-top: 8px;">
+      <strong>Supplies:</strong>
+      <ul></ul>
+    </div>
+    <button id="close-customer-history" style="margin-top:10px;">Close History</button>
+  </section>
+</main>
+<footer>
+    <p>&copy; 2025 Inventory & Stock Management | All rights reserved</p>
+  </footer>
+
+<script src="backend.js"></script>
+<script>
+  const dom = {
+    customerForm: document.getElementById('customer-form'),
+    customerMobileHidden: document.getElementById('customer-mobile-hidden'),
+    customerName: document.getElementById('customer-name'),
+    customerMobile: document.getElementById('customer-mobile'),
+    customerAddress: document.getElementById('customer-address'),
+    customersTableBody: document.querySelector('#customers-table tbody'),
+    customerHistorySection: document.getElementById('customer-history-section'),
+    customerPurchaseHistoryUl: document.querySelector('#customer-purchase-history ul'),
+    customerSupplyHistoryUl: document.querySelector('#customer-supply-history ul'),
+    closeCustomerHistoryBtn: document.getElementById('close-customer-history'),
+  };
+  
+  function resetCustomerForm() {
+    dom.customerForm.reset();
+    dom.customerMobileHidden.value = '';
+    dom.customerMobile.disabled = false;
+    dom.customerForm.querySelector('input[type="submit"]').value = 'Add Customer';
+  }
+
+  function renderCustomers() {
+    dom.customersTableBody.innerHTML = '';
+    for(const cust of inventory.customers.values()) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${cust.name}</td>
+        <td>${cust.mobile}</td>
+        <td>${cust.address}</td>
+        <td>
+          <button aria-label="View History ${cust.name}" class="view-customer-history-btn" data-mobile="${cust.mobile}" title="View History">📜</button>
+          <button aria-label="Edit ${cust.name}" class="edit-customer-btn" data-mobile="${cust.mobile}" title="Edit">✏️</button>
+          <button aria-label="Delete ${cust.name}" class="delete-customer-btn small-btn" data-mobile="${cust.mobile}" title="Delete">🗑️</button>
+        </td>
+      `;
+      dom.customersTableBody.appendChild(tr);
+    }
+  }
+
+  dom.customerForm.addEventListener('submit', e => {
+    e.preventDefault();
+    try {
+      const mobileHidden = dom.customerMobileHidden.value.trim();
+      const name = dom.customerName.value.trim();
+      const mobile = dom.customerMobile.value.trim();
+      const address = dom.customerAddress.value.trim();
+
+      // Check if the mobile number is exactly 10 digits
+      const mobileRegex = /^\d{10}$/;
+      if (!mobileRegex.test(mobile)) {
+        alert('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+
+      if (!name || !mobile || !address) {
+        alert('Please fill out all customer fields.');
+        return;
+      }
+
+      if (mobileHidden) {
+        if (mobileHidden !== mobile && inventory.customers.has(mobile)) {
+          alert('Mobile number must be unique.');
+          return;
+        }
+        if (mobileHidden !== mobile) {
+          inventory.deleteCustomer(mobileHidden);
+          inventory.addCustomer(new Customer(name, mobile, address));
+        } else {
+          inventory.editCustomer(mobile, { name, address });
+        }
+      } else {
+        if (inventory.customers.has(mobile)) {
+          alert('Mobile number already exists.');
+          return;
+        }
+        inventory.addCustomer(new Customer(name, mobile, address));
+      }
+
+      resetCustomerForm();
+      renderCustomers();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  dom.customersTableBody.addEventListener('click', e => {
+    const target = e.target;
+    if(target.classList.contains('edit-customer-btn')) {
+      const mobile = target.dataset.mobile;
+      const cust = inventory.customers.get(mobile);
+      if(cust) {
+        dom.customerName.value = cust.name;
+        dom.customerMobile.value = cust.mobile;
+        dom.customerAddress.value = cust.address;
+        dom.customerMobileHidden.value = cust.mobile;
+        dom.customerMobile.disabled = true;
+        dom.customerForm.querySelector('input[type="submit"]').value = 'Update Customer';
+        window.scrollTo(0,0);
+      }
+    }
+    if(target.classList.contains('delete-customer-btn')) {
+      const mobile = target.dataset.mobile;
+      if(confirm('Delete customer?')) {
+        try {
+          inventory.deleteCustomer(mobile);
+          renderCustomers();
+        } catch(err) {
+          alert(err.message);
+        }
+      }
+    }
+    if(target.classList.contains('view-customer-history-btn')) {
+      const mobile = target.dataset.mobile;
+      const cust = inventory.customers.get(mobile);
+      if(cust) {
+        showCustomerHistory(cust);
+      }
+    }
+  });
+
+  function showCustomerHistory(customer) {
+    const purchaseUl = dom.customerPurchaseHistoryUl;
+    const supplyUl = dom.customerSupplyHistoryUl;
+    purchaseUl.innerHTML = '';
+    supplyUl.innerHTML = '';
+
+    // Show purchase history
+    if (customer.purchaseHistory.length === 0) {
+      purchaseUl.innerHTML = '<li class="no-data">No purchases yet.</li>';
+    } else {
+      for (const item of customer.purchaseHistory) {
+        const li = document.createElement('li');
+        li.textContent = `${item.product.name} - Qty: ${item.quantity} - ${item.timestamp.toLocaleString()}`;
+        purchaseUl.appendChild(li);
+      }
+    }
+
+    // Show supply history
+    if (customer.supplyHistory.length === 0) {
+      supplyUl.innerHTML = '<li class="no-data">No supplies yet.</li>';
+    } else {
+      for (const item of customer.supplyHistory) {
+        const li = document.createElement('li');
+        li.textContent = `${item.product.name} - Qty: ${item.quantity} - ${item.timestamp.toLocaleString()}`;
+        supplyUl.appendChild(li);
+      }
+    }
+
+    dom.customerHistorySection.hidden = false;
+    dom.customerHistorySection.focus();
+  }
+
+  dom.closeCustomerHistoryBtn.addEventListener('click', () => {
+    dom.customerHistorySection.hidden = true;
+  });
+
+  renderCustomers();
+</script>
+</body>
+</html>
+
